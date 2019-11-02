@@ -11,9 +11,19 @@ class MAVParmDict(dict):
     def __init__(self, *args):
         dict.__init__(self, args)
         # some parameters should not be loaded from files
-        self.exclude_load = ['SYSID_SW_MREV', 'SYS_NUM_RESETS', 'ARSPD_OFFSET', 'GND_ABS_PRESS',
-                             'GND_TEMP', 'CMD_TOTAL', 'CMD_INDEX', 'LOG_LASTFILE', 'FENCE_TOTAL',
-                             'FORMAT_VERSION' ]
+        self.exclude_load = [
+            'ARSPD_OFFSET',
+            'CMD_INDEX',
+            'CMD_TOTAL',
+            'FENCE_TOTAL',
+            'FORMAT_VERSION',
+            'GND_ABS_PRESS',
+            'GND_TEMP',
+            'LOG_LASTFILE',
+            'MIS_TOTAL',
+            'SYSID_SW_MREV',
+            'SYS_NUM_RESETS',
+        ]
         self.mindelta = 0.000001
 
 
@@ -41,7 +51,7 @@ class MAVParmDict(dict):
             vfloat, = struct.unpack(">f", vstr)
         else:
             vfloat = float(value)
-                
+
         while retries > 0 and not got_ack:
             retries -= 1
             mav.param_set_send(name.upper(), vfloat, parm_type=parm_type)
@@ -80,12 +90,12 @@ class MAVParmDict(dict):
             print("Saved %u parameters to %s" % (count, filename))
 
 
-    def load(self, filename, wildcard='*', mav=None, check=True):
+    def load(self, filename, wildcard='*', mav=None, check=True, use_excludes=True):
         '''load parameters from a file'''
         try:
             f = open(filename, mode='r')
-        except:
-            print("Failed to open file '%s'" % filename)
+        except Exception as e:
+            print("Failed to open file '%s': %s" % (filename, str(e)))
             return False
         count = 0
         changed = 0
@@ -99,7 +109,7 @@ class MAVParmDict(dict):
                 print("Invalid line: %s" % line)
                 continue
             # some parameters should not be loaded from files
-            if a[0] in self.exclude_load:
+            if use_excludes and a[0] in self.exclude_load:
                 continue
             if not fnmatch.fnmatch(a[0].upper(), wildcard.upper()):
                 continue
@@ -138,10 +148,10 @@ class MAVParmDict(dict):
             if fnmatch.fnmatch(str(p).upper(), wildcard.upper()):
                 self.show_param_value(str(p), "%f" % self.get(p))
 
-    def diff(self, filename, wildcard='*'):
+    def diff(self, filename, wildcard='*', use_excludes=True, use_tabs=False):
         '''show differences with another parameter file'''
         other = MAVParmDict()
-        if not other.load(filename):
+        if not other.load(filename, use_excludes=use_excludes):
             return
         keys = sorted(list(set(self.keys()).union(set(other.keys()))))
         for k in keys:
@@ -154,6 +164,7 @@ class MAVParmDict(dict):
                 print("%-16.16s %12.4f" % (k, float(other[k])))
             elif abs(self[k] - other[k]) > self.mindelta:
                 value = float(self[k])
-                print("%-16.16s %12.4f %12.4f" % (k, other[k], value))
-                
-        
+                if use_tabs:
+                    print("%s\t%.4f\t%.4f" % (k, other[k], value))
+                else:
+                    print("%-16.16s %12.4f %12.4f" % (k, other[k], value))
